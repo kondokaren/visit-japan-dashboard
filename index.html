@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>訪日外客数 × 気候データ ダッシュボード</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>訪日外客数 × 気候データ ダッシュボード</h1>
+  <p class="lead">年別・月別で世界地図を切り替えながら、各国の訪日客数、平均気温、平均降水量を確認できるHTML版です。</p>
+
+  <div class="controls">
+    <div class="control">
+      <label>表示モード</label>
+      <select id="mode">
+        <option value="annual">年別</option>
+        <option value="monthly">月別</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>年</label>
+      <select id="year"></select>
+    </div>
+    <div class="control">
+      <label>月</label>
+      <select id="month"></select>
+    </div>
+    <div class="control">
+      <label>上位表示件数</label>
+      <select id="topn">
+        <option>10</option>
+        <option selected>15</option>
+        <option>20</option>
+        <option>30</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>操作</label>
+      <button id="updateBtn">表示を更新</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">対象国数</div><div class="v" id="statCountries">-</div></div>
+    <div class="stat"><div class="k" id="statLabelVisitors">訪日客数</div><div class="v" id="statVisitors">-</div></div>
+    <div class="stat"><div class="k" id="statLabelTemp">平均気温</div><div class="v" id="statTemp">-</div></div>
+    <div class="stat"><div class="k">平均降水量</div><div class="v" id="statPrecip">-</div></div>
+  </div>
+
+
+  <div class="section">
+    <h2>四半期別訪日客数合計</h2>
+    <div class="note" id="quarterNote">選択した年の1月〜3月、4月〜6月、7月〜9月、10月〜12月の合計訪日客数です。</div>
+    <div class="quarter-stats">
+      <div class="stat"><div class="k">1月〜3月</div><div class="v" id="q1Visitors">-</div></div>
+      <div class="stat"><div class="k">4月〜6月</div><div class="v" id="q2Visitors">-</div></div>
+      <div class="stat"><div class="k">7月〜9月</div><div class="v" id="q3Visitors">-</div></div>
+      <div class="stat"><div class="k">10月〜12月</div><div class="v" id="q4Visitors">-</div></div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="section">
+      <h2>世界地図</h2>
+      <div class="note"><span class="badge">色</span><span id="mapNote">年間訪日客数</span></div>
+      <div id="map"></div>
+    </div>
+    <div class="section">
+      <h2>国別ランキング</h2>
+      <div class="note" id="tableNote">上位15か国を表示しています。</div>
+      <div class="table-wrap">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>研究分析（Research Analysis）</h2>
+    <div class="note">既存の気候分析・市場セグメント・長期トレンド・将来予測に加えて、季節性・人気時期・市場集中度・需要安定性もタブで確認できます。</div>
+    <div class="research-tabs">
+      <button class="tab-btn active" data-tab="tabClimate">気候分析</button>
+      <button class="tab-btn" data-tab="tabSegments">市場セグメント</button>
+      <button class="tab-btn" data-tab="tabTrends">長期トレンド</button>
+      <button class="tab-btn" data-tab="tab予測">将来予測</button>
+      <button class="tab-btn" data-tab="tabSeasonality">季節性</button>
+      <button class="tab-btn" data-tab="tabPeakSeason">人気時期</button>
+      <button class="tab-btn" data-tab="tabConcentration">市場集中度</button>
+      <button class="tab-btn" data-tab="tabStability">需要安定性</button>
+      <button class="tab-btn" data-tab="tabDecomposition">時系列分解</button>
+      <button class="tab-btn" data-tab="tabEEMD">EEMD 適応分解</button>
+    </div>
+
+    <div id="tabClimate" class="tab-panel active">
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">気温 × 訪日客数 相関</div><div class="v" id="corrTemp">-</div></div>
+        <div class="mini-stat"><div class="k">降水量 × 訪日客数 相関</div><div class="v" id="corrPrecip">-</div></div>
+        <div class="mini-stat"><div class="k">分析対象国数</div><div class="v" id="corrN">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">気温・降水量と訪日客数</h2>
+          <div class="note">X軸を気温または降水量に切り替えて、訪日客数との関係を確認できます。</div>
+          <div class="control" style="max-width:260px; margin-bottom:10px;">
+            <label>散布図のX軸</label>
+            <select id="climateX">
+              <option value="temp">平均気温</option>
+              <option value="precip">平均降水量</option>
+            </select>
+          </div>
+          <div id="climateScatter"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">国別トレンド比較</h2>
+          <div class="note">国を選ぶと、訪日客数と平均気温の長期変化を表示します。</div>
+          <div class="control" style="max-width:260px; margin-bottom:10px;">
+            <label>国</label>
+            <select id="trendCountry"></select>
+          </div>
+          <div id="trendChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabSegments" class="tab-panel">
+      <h2 style="font-size:17px;">市場セグメント（K-Means分類）</h2>
+      <div class="note">最新年の国別データを使い、平均気温・降水量・訪日客数規模で4つの市場に分類します。</div>
+      <div class="analysis-grid">
+        <div id="clusterChart"></div>
+        <div>
+          <div class="small-table">
+            <table><thead><tr><th>クラスタ</th><th>タイプ</th><th>主な国</th><th>平均訪日客数</th></tr></thead><tbody id="clusterSummary"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabTrends" class="tab-panel">
+      <h2 style="font-size:17px;">長期トレンド（国別比較）</h2>
+      <div class="note">2か国を比較して、年間訪日客数と気候トレンドを確認します。</div>
+      <div class="forecast-controls">
+        <div class="control"><label>比較国A</label><select id="compareA"></select></div>
+        <div class="control"><label>比較国B</label><select id="compareB"></select></div>
+      </div>
+      <div id="compareVisitorsChart"></div>
+      <div id="compareClimateChart"></div>
+    </div>
+
+    <div id="tab予測" class="tab-panel">
+      <h2 style="font-size:17px;">将来予測（2027–2030年）</h2>
+      <div class="note">過去データから線形回帰で簡易予測します。研究用の初期モデルなので、今後はARIMA/Prophet/XGBoostへ拡張できます。</div>
+      <div class="forecast-controls">
+        <div class="control"><label>予測対象国</label><select id="forecastCountry"></select></div>
+        <div class="control"><label>予測年</label><select id="forecastEnd"><option value="2030" selected>2030</option><option value="2029">2029</option><option value="2028">2028</option><option value="2027">2027</option></select></div>
+      </div>
+      <div id="forecastChart"></div>
+      <div class="small-table"><table><thead><tr><th>年</th><th>予測訪日客数</th></tr></thead><tbody id="forecastTable"></tbody></table></div>
+    </div>
+
+
+    <div id="tabSeasonality" class="tab-panel">
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">ピーク月</div><div class="v" id="seasonPeakMonth">-</div></div>
+        <div class="mini-stat"><div class="k">ボトム月</div><div class="v" id="seasonLowMonth">-</div></div>
+        <div class="mini-stat"><div class="k">ピーク月シェア</div><div class="v" id="seasonPeakShare">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">季節性カレンダー</h2>
+          <div class="note">選択した年の全対象国合計を月別に並べ、どの月に需要が集まるかを確認します。</div>
+          <div id="seasonalityChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">月別シェア一覧</h2>
+          <div class="small-table"><table><thead><tr><th>月</th><th>訪日客数</th><th>構成比</th></tr></thead><tbody id="seasonalityTable"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabPeakSeason" class="tab-panel">
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">人気時期の開始</div><div class="v" id="peakStartMonth">-</div></div>
+        <div class="mini-stat"><div class="k">人気時期の終了</div><div class="v" id="peakEndMonth">-</div></div>
+        <div class="mini-stat"><div class="k">人気時期の構成比</div><div class="v" id="peakShare">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">観光客が多い時期</h2>
+          <div class="note" id="peakSeasonNote">選択した年の月別合計から、平均を上回る月が続く期間を「人気時期」として表示します。</div>
+          <div id="peakSeasonChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">人気時期はいつからいつまでか</h2>
+          <div class="small-table"><table><thead><tr><th>月</th><th>訪日客数</th><th>平均比</th><th>判定</th></tr></thead><tbody id="peakSeasonTable"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabConcentration" class="tab-panel">
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">Top 1 シェア</div><div class="v" id="concTop1">-</div></div>
+        <div class="mini-stat"><div class="k">Top 5 シェア</div><div class="v" id="concTop5">-</div></div>
+        <div class="mini-stat"><div class="k">集中度(HHI)</div><div class="v" id="concHHI">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">上位国シェア</h2>
+          <div class="note">選択条件における主要市場の依存度を確認します。</div>
+          <div id="concentrationChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">集中度テーブル</h2>
+          <div class="small-table"><table><thead><tr><th>順位</th><th>国名</th><th>訪日客数</th><th>シェア</th></tr></thead><tbody id="concentrationTable"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabStability" class="tab-panel">
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">変動最大国</div><div class="v" id="stableTopCountry">-</div></div>
+        <div class="mini-stat"><div class="k">変動係数(CV)</div><div class="v" id="stableTopCV">-</div></div>
+        <div class="mini-stat"><div class="k">最多ピーク月</div><div class="v" id="stableCommonPeak">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">月次変動性ランキング</h2>
+          <div class="note">選択した年の各国月次データから、年内の需要変動が大きい市場を確認します。</div>
+          <div id="stabilityChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">国別ピーク・ボトム月</h2>
+          <div class="small-table"><table><thead><tr><th>国名</th><th>CV</th><th>ピーク月</th><th>ボトム月</th><th>ピーク/ボトム倍率</th></tr></thead><tbody id="stabilityTable"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+        <div id="tabEEMD" class="tab-panel">
+      <h2 style="font-size:17px;">EEMD 適応的時系列分解（Ensemble Empirical Mode Decomposition）</h2>
+      <div class="note">ホワイトノイズを重畳しながら EMD（経験的モード分解）を多数回繰り返し、得られた <strong>IMF（固有モード関数）</strong>を平均化することで、<strong>モードミキシングを抑えた安定的な分解</strong>を行います。長期トレンド・年周期の季節性・短期ノイズを、それぞれ独立した成分として抽出できます。</div>
+      <div class="forecast-controls">
+        <div class="control"><label>分析対象国</label><select id="eemdCountry"></select></div>
+        <div class="control"><label>アンサンブル数</label>
+          <select id="eemdEnsemble">
+            <option value="40">40 回（高速）</option>
+            <option value="60" selected>60 回（標準）</option>
+            <option value="100">100 回（高精度）</option>
+          </select>
+        </div>
+        <div class="control"><label>ノイズ振幅</label>
+          <select id="eemdNoise">
+            <option value="0.1">0.1 × 標準偏差（弱）</option>
+            <option value="0.2" selected>0.2 × 標準偏差（標準）</option>
+            <option value="0.3">0.3 × 標準偏差（強）</option>
+          </select>
+        </div>
+        <div class="control"><label>操作</label><button id="eemdRunBtn" style="background:var(--accent); color:#fff;">EEMD を実行</button></div>
+      </div>
+      <div id="eemdProgress">⏳ EEMD を計算中です。アンサンブル数が多いほど時間がかかります…</div>
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">抽出された IMF の数</div><div class="v" id="eemdImfCount">-</div></div>
+        <div class="mini-stat"><div class="k">再構成誤差（最大値）</div><div class="v" id="eemdReconError">-</div></div>
+        <div class="mini-stat"><div class="k">最終残差の極値数</div><div class="v" id="eemdResidualMono">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">観測値（Observed） vs 再構成（Reconstructed）</h2>
+          <div class="note">観測値と全 IMF の合計がほぼ一致すれば、分解が正しく行われています。</div>
+          <div id="eemdObservedChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">成分強度（Variance Contribution）</h2>
+          <div class="note">各 IMF が観測値の分散をどれだけ説明するかの割合。値が大きい成分ほど重要な構造を残しています。</div>
+          <div id="eemdStrengthChart"></div>
+        </div>
+      </div>
+      <h2 style="font-size:17px; margin-top:16px;">IMF ごとの成分プロット</h2>
+      <div class="note">IMF は高周波（短期的）→ 低周波（長期的）の順に並びます。最終残差が <strong>「長期トレンド」</strong> に対応します。</div>
+      <div id="eemdImfGrid" class="eemd-grid"></div>
+      <div class="insight-box" style="margin-top:16px;">
+        <h2 style="font-size:17px; margin-bottom:6px;">🧠 AI EEMD インサイト</h2>
+        <div class="note">EEMD の結果から、需要構造と観光戦略を自動解釈します。</div>
+        <ul id="eemdInsights"></ul>
+      </div>
+    </div>
+
+<div id="tabDecomposition" class="tab-panel">
+      <h2 style="font-size:17px;">時系列分解（Time Series Decomposition）</h2>
+      <div class="note">国別の月次訪日客数を「観測値・トレンド・季節性・残差」に分解し、長期成長傾向と季節ノイズを分離します。<strong>より詳細な適応分解（EEMD）</strong>は隣のタブで利用できます。</div>
+      <div class="forecast-controls">
+        <div class="control"><label>分析対象国</label><select id="decompCountry"></select></div>
+      </div>
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="k">トレンド強度</div><div class="v" id="decompTrendStrength">-</div></div>
+        <div class="mini-stat"><div class="k">季節性強度</div><div class="v" id="decompSeasonStrength">-</div></div>
+        <div class="mini-stat"><div class="k">残差強度</div><div class="v" id="decompResidualStrength">-</div></div>
+      </div>
+      <div class="analysis-grid">
+        <div>
+          <h2 style="font-size:17px;">観測値（Observed）</h2>
+          <div class="note">実際の月次訪日客数です。</div>
+          <div id="decompObservedChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">トレンド（Trend）</h2>
+          <div class="note">12か月移動平均で、長期的な増加・減少傾向を見ます。</div>
+          <div id="decompTrendChart"></div>
+        </div>
+      </div>
+      <div class="analysis-grid" style="margin-top:16px;">
+        <div>
+          <h2 style="font-size:17px;">季節性（Seasonal）</h2>
+          <div class="note">何月に強い・弱い需要が出やすいかを示します。</div>
+          <div id="decompSeasonalChart"></div>
+        </div>
+        <div>
+          <h2 style="font-size:17px;">残差（Residual）</h2>
+          <div class="note">トレンドと季節性で説明できない変動です。異常値やショックを探せます。</div>
+          <div id="decompResidualChart"></div>
+        </div>
+      </div>
+      <div class="analysis-grid" style="margin-top:16px;">
+        <div>
+          <h2 style="font-size:17px;">成分強度の比較</h2>
+          <div id="decompStrengthChart"></div>
+        </div>
+        <div class="insight-box" style="margin-top:0;">
+          <h2 style="font-size:17px; margin-bottom:6px;">AI 時系列インサイト</h2>
+          <div class="note">分解結果から、市場タイプと観光戦略を自動説明します。</div>
+          <ul id="decompInsights"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  
+  <div class="section">
+    <h2>高度な研究指標（Advanced Research Indicators）</h2>
+    <div class="note" id="advancedYearNote">選択した年を基準に、成長率・季節性・COVID回復率・気候類似度・機会スコアを自動計算します。</div>
+    <div class="indicator-grid">
+      <div class="mini-stat"><div class="k">最高成長市場</div><div class="v" id="topGrowthMarket">-</div></div>
+      <div class="mini-stat"><div class="k">季節性最大市場</div><div class="v" id="topSeasonMarket">-</div></div>
+      <div class="mini-stat"><div class="k">COVID回復率トップ</div><div class="v" id="topRecoveryMarket">-</div></div>
+      <div class="mini-stat"><div class="k">機会スコアトップ</div><div class="v" id="topOpportunityMarket">-</div></div>
+    </div>
+
+    <div class="analysis-grid">
+      <div>
+        <h2 style="font-size:17px;">機会スコアランキング（Opportunity Score）</h2>
+        <div class="note" id="opportunityNote">成長率・季節性・COVID回復・予測トレンド・気候類似度を組み合わせた総合スコアです。</div>
+        <div class="indicator-table-wrap">
+          <table>
+            <thead><tr><th>順位</th><th>国名</th><th>前年比成長率</th><th>季節性CV</th><th>COVID回復率</th><th>気候類似度</th><th>スコア</th></tr></thead>
+            <tbody id="opportunityTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h2 style="font-size:17px;">相関マトリクス</h2>
+        <div class="note">選択年における訪日客数・気温・降水量の相互相関を表示します。</div>
+        <div id="correlationMatrix"></div>
+      </div>
+    </div>
+
+    <div class="analysis-grid" style="margin-top:16px;">
+      <div>
+        <h2 style="font-size:17px;">前年比成長率ランキング</h2>
+        <div id="growthChart"></div>
+      </div>
+      <div>
+        <h2 style="font-size:17px;">COVID回復指標</h2>
+        <div id="recoveryChart"></div>
+      </div>
+    </div>
+
+    <div class="insight-box">
+      <h2 style="font-size:17px; margin-bottom:6px;">AI インサイトパネル</h2>
+      <div class="note">ダッシュボードの計算結果から、研究で使える発見を自動表示します。</div>
+      <ul id="autoInsights"></ul>
+    </div>
+  </div>
+
+  <div class="sources">
+    <h2>出典</h2>
+    <ul>
+      <li>元データ: ユーザー提供のJNTO訪日外客数Excel</li>
+      <li>年平均気温: <a href="https://ourworldindata.org/grapher/average-annual-surface-temperature" target="_blank" rel="noopener">Our World in Data / Average annual surface temperature</a></li>
+      <li>月平均気温: <a href="https://ourworldindata.org/grapher/average-monthly-surface-temperature" target="_blank" rel="noopener">Our World in Data / Average monthly surface temperature</a></li>
+      <li>平均年間降水量: <a href="https://data.worldbank.org/indicator/AG.LND.PRCP.MM" target="_blank" rel="noopener">World Bank / AG.LND.PRCP.MM</a></li>
+      <li>気候データ案内: <a href="https://climateknowledgeportal.worldbank.org/download-data" target="_blank" rel="noopener">World Bank Climate Knowledge Portal</a></li>
+    </ul>
+  </div>
+</div>
+
+  <script src="data.js"></script>
+  <script src="main.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
+</body>
+</html>
